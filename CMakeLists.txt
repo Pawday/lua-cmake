@@ -2,7 +2,11 @@ cmake_minimum_required(VERSION 3.20)
 
 project(lua)
 
-find_library(LIB_MATH m REQUIRED)
+if(UNIX)
+    find_library(LIB_MATH m REQUIRED)
+else()
+    set(LIB_MATH "")
+endif()
 
 list(APPEND lua.core.sources
     lapi.c
@@ -65,6 +69,11 @@ add_library(lua.lib.obj OBJECT ${lua.lib.sources})
 add_library(lua.lib.obj_pic OBJECT ${lua.lib.sources})
 set_property(TARGET lua.lib.obj_pic PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+if (WIN32)
+    target_compile_definitions(lua.core.cpp_obj_pic PRIVATE LUA_BUILD_AS_DLL)
+    target_compile_definitions(lua.core.obj_pic PRIVATE LUA_BUILD_AS_DLL)
+endif()
+
 
 # LIB AS C++
 foreach(LIB_SOURCE ${lua.lib.sources})
@@ -79,16 +88,27 @@ add_library(lua.lib.cpp_obj_pic OBJECT ${lua.lib.cpp_sources})
 target_include_directories(lua.lib.cpp_obj_pic PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 set_property(TARGET lua.lib.cpp_obj_pic PROPERTY POSITION_INDEPENDENT_CODE ON)
 
+if (WIN32)
+    target_compile_definitions(lua.lib.cpp_obj_pic PRIVATE LUA_BUILD_AS_DLL)
+    target_compile_definitions(lua.lib.obj_pic PRIVATE LUA_BUILD_AS_DLL)
+endif()
+
+set(LUA_STATIC_ARTIFACT_NAME "lua")
+set(LUA_CPP_STATIC_ARTIFACT_NAME "lua_cxx")
+if(WIN32)
+    set(LUA_STATIC_ARTIFACT_NAME "lua_static")
+	set(LUA_CPP_STATIC_ARTIFACT_NAME "lua_cxx_static")
+endif()
 
 add_library(lua.static STATIC)
-set_property(TARGET lua.static PROPERTY OUTPUT_NAME "lua")
+set_property(TARGET lua.static PROPERTY OUTPUT_NAME ${LUA_STATIC_ARTIFACT_NAME})
 target_sources(lua.static PRIVATE
     $<TARGET_OBJECTS:lua.core.obj>
     $<TARGET_OBJECTS:lua.lib.obj>
 )
 
 add_library(lua.cpp.static STATIC)
-set_property(TARGET lua.cpp.static PROPERTY OUTPUT_NAME "lua_cxx")
+set_property(TARGET lua.cpp.static PROPERTY OUTPUT_NAME ${LUA_CPP_STATIC_ARTIFACT_NAME})
 target_sources(lua.cpp.static PRIVATE
     $<TARGET_OBJECTS:lua.core.cpp_obj>
     $<TARGET_OBJECTS:lua.lib.cpp_obj>
@@ -114,9 +134,11 @@ target_sources(lua.cpp.shared PRIVATE
 # C EXECUTABLES
 add_library(lua.exe.obj OBJECT lua.c)
 
+
 add_executable(lua.exe $<TARGET_OBJECTS:lua.exe.obj>)
 set_property(TARGET lua.exe PROPERTY OUTPUT_NAME "lua")
 target_link_libraries(lua.exe PRIVATE lua.shared)
+
 
 add_executable(lua.exe.static $<TARGET_OBJECTS:lua.exe.obj>)
 set_property(TARGET lua.exe.static PROPERTY OUTPUT_NAME "lua_static")
@@ -128,13 +150,15 @@ target_link_libraries(lua.exe.static PRIVATE lua.static ${LIB_MATH})
 set(LUA_SOURCE_CPP_LOCATION "${CMAKE_CURRENT_BINARY_DIR}/generated/lua.c.cpp")
 message("Generating lua.c -> ${LUA_SOURCE_CPP_LOCATION}")
 file(GENERATE OUTPUT ${LUA_SOURCE_CPP_LOCATION} CONTENT "#include \"lua.c\"")
-add_library(lua.cpp_exe.obj OBJECT ${LUA_SOURCE_CPP_LOCATION})
-target_include_directories(lua.cpp_exe.obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+add_library(lua.cxx_exe.obj OBJECT ${LUA_SOURCE_CPP_LOCATION})
+target_include_directories(lua.cxx_exe.obj PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
 
-add_executable(lua.cpp_exe $<TARGET_OBJECTS:lua.cpp_exe.obj>)
-set_property(TARGET lua.cpp_exe PROPERTY OUTPUT_NAME "lua_cxx")
-target_link_libraries(lua.cpp_exe PRIVATE lua.cpp.shared)
 
-add_executable(lua.cpp_exe.static $<TARGET_OBJECTS:lua.cpp_exe.obj>)
-set_property(TARGET lua.cpp_exe.static PROPERTY OUTPUT_NAME "lua_cxx_static")
-target_link_libraries(lua.cpp_exe.static PRIVATE lua.cpp.static ${LIB_MATH})
+add_executable(lua.cxx_exe $<TARGET_OBJECTS:lua.cxx_exe.obj>)
+set_property(TARGET lua.cxx_exe PROPERTY OUTPUT_NAME "lua_cxx")
+target_link_libraries(lua.cxx_exe PRIVATE lua.cpp.shared)
+
+
+add_executable(lua.cxx_exe.static $<TARGET_OBJECTS:lua.cxx_exe.obj>)
+set_property(TARGET lua.cxx_exe.static PROPERTY OUTPUT_NAME "lua_cxx_static")
+target_link_libraries(lua.cxx_exe.static PRIVATE lua.cpp.static ${LIB_MATH})
